@@ -1,7 +1,7 @@
 use ffmpeg_next::format::{input, Pixel};
-use ffmpeg_next::codec::decoder::video::Video;
+use ffmpeg_next::codec::{self, decoder};
 use ffmpeg_next::util::frame::video::Video as FrameVideo;
-use ffmpeg_next::software::scaling::{context::Context, flag::Flags};
+use ffmpeg_next::software::scaling::{context::Context as ScaleContext, flag::Flags};
 use std::path::Path;
 
 pub fn process_video(video_path: &str) {
@@ -25,16 +25,26 @@ pub fn process_video(video_path: &str) {
         }
     };
 
-    let mut decoder = match Video::from_parameters(input.parameters()) {
+    // Create a decoder from the codec parameters
+    let codec_params = input.parameters();
+    let mut codec_context = match codec::Context::from_parameters(codec_params) {
+        Ok(ctx) => ctx,
+        Err(e) => {
+            eprintln!("Error creating codec context: {}", e);
+            return;
+        }
+    };
+
+    let mut decoder = match codec_context.decoder().video() {
         Ok(dec) => dec,
         Err(e) => {
-            eprintln!("Error creating decoder: {}", e);
+            eprintln!("Error creating video decoder: {}", e);
             return;
         }
     };
 
     // Set up a scaler to convert images to RGB24, which is easier to work with
-    let mut scaler = match Context::get(
+    let mut scaler = match ScaleContext::get(
         decoder.format(),
         decoder.width(),
         decoder.height(),
